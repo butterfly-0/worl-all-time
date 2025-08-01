@@ -86,6 +86,8 @@ jobs:
             python -m new_parsers.anitube.update_popularity_rank_alltime
           elif [ "${{ matrix.parser }}" = "playlist_parser" ]; then
             python -m new_parsers.playlist_parser
+          elif [ "${{ matrix.parser }}" = "anitube_hikka" ]; then
+            python -m new_parsers.runImports anitube_hikka
           fi
 
       - name: Upload progress
