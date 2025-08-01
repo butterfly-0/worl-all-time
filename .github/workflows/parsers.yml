@@ -23,6 +23,12 @@ jobs:
           git clone https://butterfly-0:${TOKEN}@github.com/butterfly-0/collection-anime.git
           cd collection-anime
           git submodule update --init --recursive
+          
+      - name: Create .env from secrets
+        run: |
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> collection-anime/.env
+          echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> collection-anime/.env
+          echo "PARSER_PROXY=${{ secrets.PARSER_PROXY }}" >> collection-anime/.env
 
       - name: Set up Python
         uses: actions/setup-python@v4
