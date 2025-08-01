@@ -46,7 +46,7 @@ jobs:
           pip install -r collection-anime/new_parsers/requirements.txt
 
       - name: Download progress
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: progress-${{ matrix.parser }}
           path: collection-anime/new_parsers/progress
@@ -71,7 +71,7 @@ jobs:
           fi
 
       - name: Upload progress
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: progress-${{ matrix.parser }}
           path: collection-anime/new_parsers/progress/progress_${{ matrix.parser }}.json
