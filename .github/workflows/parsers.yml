@@ -47,9 +47,9 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: |
-          pip install -r collection-anime/new_parsers/requirements.txt
+      - - name: Install dependencies
+          run: |
+            pip install -r collection-anime/Dr/Ani-Sites-Agregator/requirements.txt
 
       - name: Download progress
         uses: actions/download-artifact@v4
