@@ -1,0 +1,77 @@
+name: Run Private Parsers
+
+on:
+  schedule:
+    - cron: '0 2 * * *'      # airing: щодня
+    - cron: '0 3 1 * *'      # top_upcoming: раз на місяць
+    - cron: '0 4 1 1,4,7,10 *' # mass_parser: раз на 3 місяці
+    - cron: '0 5 */3 * *'    # update_newly_ukrainian: раз на 3 дні
+    - cron: '0 6 1 1,4,7,10 *' # update_popularity_rank_alltime: раз на 3 місяці
+    - cron: '0 7 */4 * *'    # playlist_parser: раз на 4 дні
+  workflow_dispatch:
+
+jobs:
+  run-parsers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      matrix:
+        parser:
+          - airing
+          - top_season
+          - top_upcoming
+          - mass_parser
+          - update_newly_ukrainian
+          - update_popularity_rank_alltime
+          - playlist_parser
+    steps:
+      - name: Checkout workflow repo
+        uses: actions/checkout@v3
+
+      - name: Clone private repo
+        env:
+          TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: |
+          git clone https://butterfly-0:${TOKEN}@github.com/butterfly-0/collection-anime.git
+          cd collection-anime
+          git submodule update --init --recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install -r collection-anime/new_parsers/requirements.txt
+
+      - name: Download progress
+        uses: actions/download-artifact@v3
+        with:
+          name: progress-${{ matrix.parser }}
+          path: collection-anime/new_parsers/progress
+
+      - name: Run parser
+        run: |
+          cd collection-anime
+          if [ "${{ matrix.parser }}" = "airing" ]; then
+            python -m new_parsers.runImports airing
+          elif [ "${{ matrix.parser }}" = "top_season" ]; then
+            python -m new_parsers.runImports top_season
+          elif [ "${{ matrix.parser }}" = "top_upcoming" ]; then
+            python -m new_parsers.runImports top_upcoming
+          elif [ "${{ matrix.parser }}" = "mass_parser" ]; then
+            python -m new_parsers.anilist.mass_parser
+          elif [ "${{ matrix.parser }}" = "update_newly_ukrainian" ]; then
+            python -m new_parsers.anitube.update_newly_ukrainian
+          elif [ "${{ matrix.parser }}" = "update_popularity_rank_alltime" ]; then
+            python -m new_parsers.anitube.update_popularity_rank_alltime
+          elif [ "${{ matrix.parser }}" = "playlist_parser" ]; then
+            python -m new_parsers.playlist_parser
+          fi
+
+      - name: Upload progress
+        uses: actions/upload-artifact@v3
+        with:
+          name: progress-${{ matrix.parser }}
+          path: collection-anime/new_parsers/progress/progress_${{ matrix.parser }}.json
