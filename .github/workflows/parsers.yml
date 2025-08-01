@@ -18,23 +18,11 @@ on:
 jobs:
   run-parsers:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
-    strategy:
-      matrix:
-        parser:
-          - airing
-          - top_season
-          - top_upcoming
-          - mass_parser
-          - update_newly_ukrainian
-          - update_popularity_rank_alltime
-          - playlist_parser
-          - anitube_hikka
-      fail-fast: false
+    timeout-minutes: 360
     steps:
       - name: Checkout workflow repo
-        uses: actions/checkout@v3
-        
+        uses: actions/checkout@v4
+      
       - name: Clone private repo
         env:
           TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -58,44 +46,66 @@ jobs:
         run: |
           pip install -r collection-anime/Dr/Ani-Sites-Agregator/requirements.txt
 
-      - name: Download progress
-        uses: actions/download-artifact@v4
-        with:
-          name: progress-${{ matrix.parser }}
-          path: collection-anime/new_parsers/progress
-        continue-on-error: true
-
-      - name: Run parser
+      - name: Run anitube_hikka
         if: |
-          github.event_name != 'workflow_dispatch' ||
           github.event.inputs.parser == '' ||
-          github.event.inputs.parser == matrix.parser
+          github.event.inputs.parser == 'anitube_hikka'
         run: |
           cd collection-anime
-          if [ "${{ matrix.parser }}" = "airing" ]; then
-            python -m new_parsers.runImports airing
-          elif [ "${{ matrix.parser }}" = "top_season" ]; then
-            python -m new_parsers.runImports top_season
-          elif [ "${{ matrix.parser }}" = "top_upcoming" ]; then
-            python -m new_parsers.runImports top_upcoming
-          elif [ "${{ matrix.parser }}" = "mass_parser" ]; then
-            python -m new_parsers.anilist.mass_parser
-          elif [ "${{ matrix.parser }}" = "update_newly_ukrainian" ]; then
-            python -m new_parsers.anitube.update_newly_ukrainian
-          elif [ "${{ matrix.parser }}" = "update_popularity_rank_alltime" ]; then
-            python -m new_parsers.anitube.update_popularity_rank_alltime
-          elif [ "${{ matrix.parser }}" = "playlist_parser" ]; then
-            python -m new_parsers.playlist_parser
-          elif [ "${{ matrix.parser }}" = "anitube_hikka" ]; then
-            python -m new_parsers.runImports anitube_hikka
-          fi
+          python -m new_parsers.runImports anitube_hikka
 
-      - name: Upload progress
+      - name: Run mass_parser
         if: |
-          github.event_name != 'workflow_dispatch' ||
           github.event.inputs.parser == '' ||
-          github.event.inputs.parser == matrix.parser
-        uses: actions/upload-artifact@v4
-        with:
-          name: progress-${{ matrix.parser }}
-          path: collection-anime/new_parsers/progress/progress_${{ matrix.parser }}.json
+          github.event.inputs.parser == 'mass_parser'
+        run: |
+          cd collection-anime
+          python -m new_parsers.anilist.mass_parser
+
+      - name: Run top_season
+        if: |
+          github.event.inputs.parser == '' ||
+          github.event.inputs.parser == 'top_season'
+        run: |
+          cd collection-anime
+          python -m new_parsers.runImports top_season
+
+      - name: Run top_upcoming
+        if: |
+          github.event.inputs.parser == '' ||
+          github.event.inputs.parser == 'top_upcoming'
+        run: |
+          cd collection-anime
+          python -m new_parsers.runImports top_upcoming
+
+      - name: Run update_newly_ukrainian
+        if: |
+          github.event.inputs.parser == '' ||
+          github.event.inputs.parser == 'update_newly_ukrainian'
+        run: |
+          cd collection-anime
+          python -m new_parsers.anitube.update_newly_ukrainian
+
+      - name: Run airing
+        if: |
+          github.event.inputs.parser == '' ||
+          github.event.inputs.parser == 'airing'
+        run: |
+          cd collection-anime
+          python -m new_parsers.runImports airing
+
+      - name: Run playlist_parser
+        if: |
+          github.event.inputs.parser == '' ||
+          github.event.inputs.parser == 'playlist_parser'
+        run: |
+          cd collection-anime
+          python -m new_parsers.playlist_parser
+
+      - name: Run update_popularity_rank_alltime
+        if: |
+          github.event.inputs.parser == '' ||
+          github.event.inputs.parser == 'update_popularity_rank_alltime'
+        run: |
+          cd collection-anime
+          python -m new_parsers.anitube.update_popularity_rank_alltime
