@@ -34,6 +34,11 @@ jobs:
       - name: Checkout workflow repo
         uses: actions/checkout@v3
 
+      - name: Create .env from secrets
+        run: |
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> collection-anime/.env
+          echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> collection-anime/.env
+          echo "PARSER_PROXY=${{ secrets.PARSER_PROXY }}" >> collection-anime/.env
       - name: Clone private repo
         env:
           TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -41,7 +46,7 @@ jobs:
           git clone https://butterfly-0:${TOKEN}@github.com/butterfly-0/collection-anime.git
           cd collection-anime
           git submodule update --init --recursive
-
+        
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
