@@ -7,6 +7,13 @@ on:
         description: 'Який парсер запускати (залиште порожнім для запуску всіх по черзі)'
         required: false
         default: ''
+  schedule:
+    - cron: '0 2 * * *'      # airing: щодня
+    - cron: '0 3 1 * *'      # top_upcoming: раз на місяць
+    - cron: '0 4 1 1,4,7,10 *' # mass_parser: раз на 3 місяці
+    - cron: '0 5 */3 * *'    # update_newly_ukrainian: раз на 3 дні
+    - cron: '0 6 1 1,4,7,10 *' # update_popularity_rank_alltime: раз на 3 місяці
+    - cron: '0 7 */4 * *'    # playlist_parser: раз на 4 дні
 
 jobs:
   run-parsers:
@@ -82,6 +89,24 @@ jobs:
         run: |
           cd collection-anime
           python -m new_parsers.playlist_parser
+
+      - name: Check playlist_parser progress and rerun if needed
+        if: github.event.inputs.parser == '' || github.event.inputs.parser == 'playlist_parser'
+        run: |
+          cd collection-anime
+          python3 -c "import json; p=json.load(open('new_parsers/progress/progress_playlist_parser.json')); print(p.get('last_index', 0), '/', len(json.load(open('data/playlist_parser_result.json'))))" || echo 'No progress file yet.'
+          # Якщо не завершено, тригеримо rerun через GitHub API (псевдокод, замінити на робочий curl)
+          if [ -f new_parsers/progress/progress_playlist_parser.json ]; then \
+            total=$(jq length data/playlist_parser_result.json 2>/dev/null || echo 0); \
+            done=$(jq .last_index new_parsers/progress/progress_playlist_parser.json 2>/dev/null || echo 0); \
+            if [ "$done" -lt "$total" ]; then \
+              echo 'Rerun workflow for playlist_parser'; \
+              curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                https://api.github.com/repos/${{ github.repository }}/actions/workflows/${{ github.workflow }}/dispatches \
+                -d '{"ref":"${{ github.ref }}","inputs":{"parser":"playlist_parser"}}'; \
+            fi; \
+          fi
 
       - name: Run update_popularity_rank_alltime
         if: github.event.inputs.parser == '' || github.event.inputs.parser == 'update_popularity_rank_alltime'
