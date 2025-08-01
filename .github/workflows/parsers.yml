@@ -2,12 +2,12 @@ name: Run Private Parsers
 
 on:
   schedule:
-    - cron: '0 2 * * *'      # airing: щодня
-    - cron: '0 3 1 * *'      # top_upcoming: раз на місяць
-    - cron: '0 4 1 1,4,7,10 *' # mass_parser: раз на 3 місяці
-    - cron: '0 5 */3 * *'    # update_newly_ukrainian: раз на 3 дні
-    - cron: '0 6 1 1,4,7,10 *' # update_popularity_rank_alltime: раз на 3 місяці
-    - cron: '0 7 */4 * *'    # playlist_parser: раз на 4 дні
+    - cron: '0 2 * * *'
+    - cron: '0 3 1 * *'
+    - cron: '0 4 1 1,4,7,10 *'
+    - cron: '0 5 */3 * *'
+    - cron: '0 6 1 1,4,7,10 *'
+    - cron: '0 7 */4 * *'
   workflow_dispatch:
     inputs:
       parser:
@@ -29,14 +29,7 @@ jobs:
           - update_newly_ukrainian
           - update_popularity_rank_alltime
           - playlist_parser
-      # Якщо запуск вручну і обрано конкретний парсер — запускаємо лише його
-      # Якщо запуск за розкладом або без вибору — запускаємо всі
       fail-fast: false
-    # Фільтр matrix для ручного запуску
-    if: |
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.parser == '' ||
-      matrix.parser == github.event.inputs.parser
     steps:
       - name: Checkout workflow repo
         uses: actions/checkout@v3
@@ -65,6 +58,10 @@ jobs:
           path: collection-anime/new_parsers/progress
 
       - name: Run parser
+        if: |
+          github.event_name != 'workflow_dispatch' ||
+          github.event.inputs.parser == '' ||
+          github.event.inputs.parser == matrix.parser
         run: |
           cd collection-anime
           if [ "${{ matrix.parser }}" = "airing" ]; then
@@ -84,6 +81,10 @@ jobs:
           fi
 
       - name: Upload progress
+        if: |
+          github.event_name != 'workflow_dispatch' ||
+          github.event.inputs.parser == '' ||
+          github.event.inputs.parser == matrix.parser
         uses: actions/upload-artifact@v4
         with:
           name: progress-${{ matrix.parser }}
