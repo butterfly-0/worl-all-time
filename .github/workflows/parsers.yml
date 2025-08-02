@@ -155,13 +155,14 @@ jobs:
           mkdir -p new_parsers/logs new_parsers/progress new_parsers/metrics
       
       - name: Download previous progress
+        if: ${{ github.event.inputs.force_restart != 'true' }}
         uses: dawidd6/action-download-artifact@v2
+        continue-on-error: true
         with:
           workflow: parser-pipeline.yml
           name: anitube-hikka-progress
           path: private-repo/new_parsers/progress
           if_no_artifact_found: warn
-          continue-on-error: true
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -251,13 +252,14 @@ jobs:
           mkdir -p new_parsers/metrics
       
       - name: Download previous progress
+        if: ${{ github.event.inputs.force_restart != 'true' }}
         uses: dawidd6/action-download-artifact@v2
+        continue-on-error: true
         with:
           workflow: parser-pipeline.yml
           name: top-season-progress
           path: private-repo/new_parsers/progress
           if_no_artifact_found: warn
-          continue-on-error: true
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -347,13 +349,14 @@ jobs:
           mkdir -p new_parsers/metrics
       
       - name: Download previous progress
+        if: ${{ github.event.inputs.force_restart != 'true' }}
         uses: dawidd6/action-download-artifact@v2
+        continue-on-error: true
         with:
           workflow: parser-pipeline.yml
           name: top-alltime-progress
           path: private-repo/new_parsers/progress
           if_no_artifact_found: warn
-          continue-on-error: true
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -427,7 +430,7 @@ jobs:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private-repo
           ref: ${{ env.PRIVATE_REPO_BRANCH }}
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -443,13 +446,14 @@ jobs:
           mkdir -p new_parsers/metrics
       
       - name: Download previous progress
+        if: ${{ github.event.inputs.force_restart != 'true' }}
         uses: dawidd6/action-download-artifact@v2
+        continue-on-error: true
         with:
           workflow: parser-pipeline.yml
           name: upcoming-progress
           path: private-repo/new_parsers/progress
           if_no_artifact_found: warn
-          continue-on-error: true
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -539,13 +543,14 @@ jobs:
           mkdir -p new_parsers/metrics
       
       - name: Download previous progress
+        if: ${{ github.event.inputs.force_restart != 'true' }}
         uses: dawidd6/action-download-artifact@v2
+        continue-on-error: true
         with:
           workflow: parser-pipeline.yml
           name: airing-progress
           path: private-repo/new_parsers/progress
           if_no_artifact_found: warn
-          continue-on-error: true
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -635,13 +640,14 @@ jobs:
           mkdir -p new_parsers/metrics
       
       - name: Download previous progress
+        if: ${{ github.event.inputs.force_restart != 'true' }}
         uses: dawidd6/action-download-artifact@v2
+        continue-on-error: true
         with:
           workflow: parser-pipeline.yml
           name: playlist-progress
           path: private-repo/new_parsers/progress
           if_no_artifact_found: warn
-          continue-on-error: true
 
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -731,13 +737,14 @@ jobs:
           mkdir -p new_parsers/metrics
       
       - name: Download previous progress
+        if: ${{ github.event.inputs.force_restart != 'true' }}
         uses: dawidd6/action-download-artifact@v2
+        continue-on-error: true
         with:
           workflow: parser-pipeline.yml
           name: mass-parser-progress
           path: private-repo/new_parsers/progress
           if_no_artifact_found: warn
-          continue-on-error: true
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
