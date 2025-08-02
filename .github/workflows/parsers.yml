@@ -161,6 +161,7 @@ jobs:
           name: anitube-hikka-progress
           path: private-repo/new_parsers/progress
           if_no_artifact_found: warn
+          continue-on-error: true
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -256,6 +257,7 @@ jobs:
           name: top-season-progress
           path: private-repo/new_parsers/progress
           if_no_artifact_found: warn
+          continue-on-error: true
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -350,7 +352,8 @@ jobs:
           workflow: parser-pipeline.yml
           name: top-alltime-progress
           path: private-repo/new_parsers/progress
-          if_no_artifact_found: war
+          if_no_artifact_found: warn
+          continue-on-error: true
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -445,7 +448,8 @@ jobs:
           workflow: parser-pipeline.yml
           name: upcoming-progress
           path: private-repo/new_parsers/progress
-          if_no_artifact_found: war
+          if_no_artifact_found: warn
+          continue-on-error: true
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -540,7 +544,8 @@ jobs:
           workflow: parser-pipeline.yml
           name: airing-progress
           path: private-repo/new_parsers/progress
-          if_no_artifact_found: war
+          if_no_artifact_found: warn
+          continue-on-error: true
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -635,6 +640,8 @@ jobs:
           workflow: parser-pipeline.yml
           name: playlist-progress
           path: private-repo/new_parsers/progress
+          if_no_artifact_found: warn
+          continue-on-error: true
 
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -730,6 +737,7 @@ jobs:
           name: mass-parser-progress
           path: private-repo/new_parsers/progress
           if_no_artifact_found: warn
+          continue-on-error: true
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
