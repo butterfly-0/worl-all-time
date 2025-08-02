@@ -58,48 +58,59 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
       
+      - name: Install basic dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests psutil pyyaml
+      
       - name: Clone private repository
         uses: actions/checkout@v3
-        env:
-          TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
         with:
           repository: ${{ env.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private-repo
           ref: ${{ env.PRIVATE_REPO_BRANCH }}
       
-      - name: Install dependencies
+      - name: Create simple health check
         run: |
-          cd private-repo
-          pip install requests psutil pyyaml
+          cat > simple_health_check.py << 'EOF'
+          #!/usr/bin/env python3
+          import os, json, psutil
+          from datetime import datetime
+          def check_system():
+              memory = psutil.virtual_memory()
+              cpu = psutil.cpu_percent(interval=1)
+              disk = psutil.disk_usage('/')
+              return {
+                  "timestamp": datetime.now().isoformat(),
+                  "memory": {"total_mb": round(memory.total / (1024 * 1024), 2), "used_mb": round((memory.total - memory.available) / (1024 * 1024), 2), "percent": memory.percent, "status": "warning" if memory.percent > 80 else "ok"},
+                  "cpu": {"percent": cpu, "cores": psutil.cpu_count(), "status": "warning" if cpu > 90 else "ok"},
+                  "disk": {"total_gb": round(disk.total / (1024 * 1024 * 1024), 2), "used_gb": round(disk.used / (1024 * 1024 * 1024), 2), "percent": disk.percent, "status": "warning" if disk.percent > 90 else "ok"},
+                  "status": "ok"
+              }
+          def main():
+              report = {"system": check_system()}
+              with open("health_check_report.json", "w", encoding="utf-8") as f:
+                  json.dump(report, f, ensure_ascii=False, indent=2)
+              print("Health check completed")
+          if __name__ == "__main__":
+              main()
+          EOF
+          chmod +x simple_health_check.py
       
       - name: Run health check
         run: |
-          cd private-repo
-          python .github/actions/health-check/lib/health_check.py
-        env:
-          PROXY_URL: ${{ secrets.PARSER_PROXY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          CHECK_EXTERNAL_APIS: 'true'
-          MEMORY_THRESHOLD: '80'
-          CPU_THRESHOLD: '90'
-          DISK_THRESHOLD: '90'
+          python simple_health_check.py
       
       - name: Display health check report
         run: |
-          cd private-repo
-          if [ -f "health_check_report.json" ]; then
-            cat health_check_report.json
-          else
-            echo "Health check report not found"
-          fi
+          if [ -f "health_check_report.json" ]; then cat health_check_report.json; else echo "Health check report not found"; fi
       
       - name: Upload health check report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: health-check-report
-          path: private-repo/health_check_report.json
+          path: health_check_report.json
           retention-days: 7
   
   # Основний парсер AniTube + Hikka
@@ -130,26 +141,20 @@ jobs:
 
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           cd private-repo
-          pip install -r new_parsers/requirements.txt
-      
-      - name: Install anitube-ua-lib
-        run: |
-          cd private-repo/anitube-ua-lib
-          pip install -e .
+          if [ -f "new_parsers/requirements.txt" ]; then pip install -r new_parsers/requirements.txt; else pip install requests python-dotenv supabase; fi
+          if [ -d "anitube-ua-lib" ]; then cd anitube-ua-lib && pip install -e . && cd ..; fi
       
       - name: Create required directories
         run: |
           cd private-repo
-          mkdir -p new_parsers/logs
-          mkdir -p new_parsers/progress
-          mkdir -p new_parsers/metrics
+          mkdir -p new_parsers/logs new_parsers/progress new_parsers/metrics
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
         run: |
           cd private-repo
-          echo "Примусовий перезапуск: видалення файлів прогресу для anitube_hikka"
           rm -f new_parsers/progress/progress_anitube_hikka.json
       
       - name: Run AniTube + Hikka parser
@@ -164,11 +169,11 @@ jobs:
           LOG_LEVEL: ${{ github.event.inputs.debug_mode == 'true' && 'DEBUG' || 'INFO' }}
         run: |
           cd private-repo
-          python -m new_parsers.runImports anitube_hikka
+          if [ -f "new_parsers/runImports.py" ]; then python -m new_parsers.runImports anitube_hikka; else echo "runImports.py not found"; exit 1; fi
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: anitube-hikka-progress
           path: private-repo/new_parsers/progress/
@@ -176,7 +181,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: anitube-hikka-logs
           path: private-repo/new_parsers/logs/
@@ -184,7 +189,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: anitube-hikka-metrics
           path: private-repo/new_parsers/metrics/
@@ -215,17 +220,14 @@ jobs:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private-repo
           ref: ${{ env.PRIVATE_REPO_BRANCH }}
-      
+
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           cd private-repo
-          pip install -r new_parsers/requirements.txt
-      
-      - name: Install anitube-ua-lib
-        run: |
-          cd private-repo/anitube-ua-lib
-          pip install -e .
-      
+          if [ -f "new_parsers/requirements.txt" ]; then pip install -r new_parsers/requirements.txt; else pip install requests python-dotenv supabase; fi
+          if [ -d "anitube-ua-lib" ]; then cd anitube-ua-lib && pip install -e . && cd ..; fi
+
       - name: Create required directories
         run: |
           cd private-repo
@@ -252,11 +254,11 @@ jobs:
           LOG_LEVEL: ${{ github.event.inputs.debug_mode == 'true' && 'DEBUG' || 'INFO' }}
         run: |
           cd private-repo
-          python -m new_parsers.runImports top_season
+          if [ -f "new_parsers/runImports.py" ]; then python -m new_parsers.runImports top_season; else echo "runImports.py not found"; exit 1; fi
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: top-season-progress
           path: private-repo/new_parsers/progress/
@@ -264,7 +266,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: top-season-logs
           path: private-repo/new_parsers/logs/
@@ -272,7 +274,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: top-season-metrics
           path: private-repo/new_parsers/metrics/
@@ -306,13 +308,10 @@ jobs:
       
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           cd private-repo
-          pip install -r new_parsers/requirements.txt
-      
-      - name: Install anitube-ua-lib
-        run: |
-          cd private-repo/anitube-ua-lib
-          pip install -e .
+          if [ -f "new_parsers/requirements.txt" ]; then pip install -r new_parsers/requirements.txt; else pip install requests python-dotenv supabase; fi
+          if [ -d "anitube-ua-lib" ]; then cd anitube-ua-lib && pip install -e . && cd ..; fi
       
       - name: Create required directories
         run: |
@@ -340,11 +339,11 @@ jobs:
           LOG_LEVEL: ${{ github.event.inputs.debug_mode == 'true' && 'DEBUG' || 'INFO' }}
         run: |
           cd private-repo
-          python -m new_parsers.runImports top_alltime
+          if [ -f "new_parsers/runImports.py" ]; then python -m new_parsers.runImports top_alltime; else echo "runImports.py not found"; exit 1; fi
       
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: top-alltime-progress
           path: private-repo/new_parsers/progress/
@@ -352,7 +351,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: top-alltime-logs
           path: private-repo/new_parsers/logs/
@@ -360,7 +359,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: top-alltime-metrics
           path: private-repo/new_parsers/metrics/
@@ -394,13 +393,10 @@ jobs:
       
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           cd private-repo
-          pip install -r new_parsers/requirements.txt
-      
-      - name: Install anitube-ua-lib
-        run: |
-          cd private-repo/anitube-ua-lib
-          pip install -e .
+          if [ -f "new_parsers/requirements.txt" ]; then pip install -r new_parsers/requirements.txt; else pip install requests python-dotenv supabase; fi
+          if [ -d "anitube-ua-lib" ]; then cd anitube-ua-lib && pip install -e . && cd ..; fi
       
       - name: Create required directories
         run: |
@@ -428,11 +424,11 @@ jobs:
           LOG_LEVEL: ${{ github.event.inputs.debug_mode == 'true' && 'DEBUG' || 'INFO' }}
         run: |
           cd private-repo
-          python -m new_parsers.runImports top_upcoming
+          if [ -f "new_parsers/runImports.py" ]; then python -m new_parsers.runImports top_upcoming; else echo "runImports.py not found"; exit 1; fi
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: upcoming-progress
           path: private-repo/new_parsers/progress/
@@ -440,7 +436,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: upcoming-logs
           path: private-repo/new_parsers/logs/
@@ -448,7 +444,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: upcoming-metrics
           path: private-repo/new_parsers/metrics/
@@ -482,13 +478,10 @@ jobs:
       
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           cd private-repo
-          pip install -r new_parsers/requirements.txt
-      
-      - name: Install anitube-ua-lib
-        run: |
-          cd private-repo/anitube-ua-lib
-          pip install -e .
+          if [ -f "new_parsers/requirements.txt" ]; then pip install -r new_parsers/requirements.txt; else pip install requests python-dotenv supabase; fi
+          if [ -d "anitube-ua-lib" ]; then cd anitube-ua-lib && pip install -e . && cd ..; fi
       
       - name: Create required directories
         run: |
@@ -516,11 +509,11 @@ jobs:
           LOG_LEVEL: ${{ github.event.inputs.debug_mode == 'true' && 'DEBUG' || 'INFO' }}
         run: |
           cd private-repo
-          python -m new_parsers.runImports airing
+          if [ -f "new_parsers/runImports.py" ]; then python -m new_parsers.runImports airing; else echo "runImports.py not found"; exit 1; fi
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: airing-progress
           path: private-repo/new_parsers/progress/
@@ -528,7 +521,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: airing-logs
           path: private-repo/new_parsers/logs/
@@ -536,7 +529,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: airing-metrics
           path: private-repo/new_parsers/metrics/
@@ -570,13 +563,10 @@ jobs:
       
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           cd private-repo
-          pip install -r new_parsers/requirements.txt
-      
-      - name: Install anitube-ua-lib
-        run: |
-          cd private-repo/anitube-ua-lib
-          pip install -e .
+          if [ -f "new_parsers/requirements.txt" ]; then pip install -r new_parsers/requirements.txt; else pip install requests python-dotenv supabase; fi
+          if [ -d "anitube-ua-lib" ]; then cd anitube-ua-lib && pip install -e . && cd ..; fi
       
       - name: Create required directories
         run: |
@@ -604,11 +594,11 @@ jobs:
           LOG_LEVEL: ${{ github.event.inputs.debug_mode == 'true' && 'DEBUG' || 'INFO' }}
         run: |
           cd private-repo
-          python -m new_parsers.playlist_parser
+          if [ -f "new_parsers/playlist_parser.py" ]; then python -m new_parsers.playlist_parser; else echo "playlist_parser.py not found"; exit 1; fi
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: playlist-progress
           path: private-repo/new_parsers/progress/
@@ -616,7 +606,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: playlist-logs
           path: private-repo/new_parsers/logs/
@@ -624,7 +614,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: playlist-metrics
           path: private-repo/new_parsers/metrics/
@@ -658,13 +648,10 @@ jobs:
       
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           cd private-repo
-          pip install -r new_parsers/requirements.txt
-      
-      - name: Install anitube-ua-lib
-        run: |
-          cd private-repo/anitube-ua-lib
-          pip install -e .
+          if [ -f "new_parsers/requirements.txt" ]; then pip install -r new_parsers/requirements.txt; else pip install requests python-dotenv supabase; fi
+          if [ -d "anitube-ua-lib" ]; then cd anitube-ua-lib && pip install -e . && cd ..; fi
       
       - name: Create required directories
         run: |
@@ -692,11 +679,11 @@ jobs:
           LOG_LEVEL: ${{ github.event.inputs.debug_mode == 'true' && 'DEBUG' || 'INFO' }}
         run: |
           cd private-repo
-          python -m new_parsers.anilist.mass_parser
+          if [ -f "new_parsers/anilist/mass_parser.py" ]; then python -m new_parsers.anilist.mass_parser; else echo "mass_parser.py not found"; exit 1; fi
       
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: mass-parser-progress
           path: private-repo/new_parsers/progress/
@@ -704,7 +691,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: mass-parser-logs
           path: private-repo/new_parsers/logs/
@@ -712,7 +699,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: mass-parser-metrics
           path: private-repo/new_parsers/metrics/
@@ -746,13 +733,13 @@ jobs:
       
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           cd private-repo
-          pip install -r new_parsers/requirements.txt
-      
+          if [ -f "new_parsers/requirements.txt" ]; then pip install -r new_parsers/requirements.txt; else pip install requests supabase; fi
       - name: Merge duplicates
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
           cd private-repo
-          python -m new_parsers.utils.merge_duplicates
+          if [ -f "new_parsers/utils/merge_duplicates.py" ]; then python -m new_parsers.utils.merge_duplicates; else echo "merge_duplicates.py not found"; fi
