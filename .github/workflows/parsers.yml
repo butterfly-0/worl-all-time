@@ -350,7 +350,7 @@ jobs:
           workflow: parser-pipeline.yml
           name: top-alltime-progress
           path: private-repo/new_parsers/progress
-          if_no_artifact_found: warn
+          if_no_artifact_found: war
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -445,7 +445,7 @@ jobs:
           workflow: parser-pipeline.yml
           name: upcoming-progress
           path: private-repo/new_parsers/progress
-          if_no_artifact_found: warn
+          if_no_artifact_found: war
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -540,7 +540,7 @@ jobs:
           workflow: parser-pipeline.yml
           name: airing-progress
           path: private-repo/new_parsers/progress
-          if_no_artifact_found: warn
+          if_no_artifact_found: war
       
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
@@ -636,7 +636,8 @@ jobs:
           name: playlist-progress
           path: private-repo/new_parsers/progress
           if_no_artifact_found: warn
-      
+        continue-on-error: true
+
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
         run: |
