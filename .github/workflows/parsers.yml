@@ -94,7 +94,7 @@ jobs:
           fi
       
       - name: Upload health check report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: health-check-report
           path: private-repo/health_check_report.json
@@ -166,7 +166,7 @@ jobs:
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: anitube-hikka-progress
           path: private-repo/new_parsers/progress/
@@ -174,7 +174,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: anitube-hikka-logs
           path: private-repo/new_parsers/logs/
@@ -182,7 +182,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: anitube-hikka-metrics
           path: private-repo/new_parsers/metrics/
@@ -254,7 +254,7 @@ jobs:
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: top-season-progress
           path: private-repo/new_parsers/progress/
@@ -262,7 +262,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: top-season-logs
           path: private-repo/new_parsers/logs/
@@ -270,7 +270,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: top-season-metrics
           path: private-repo/new_parsers/metrics/
@@ -342,7 +342,7 @@ jobs:
       
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: top-alltime-progress
           path: private-repo/new_parsers/progress/
@@ -350,7 +350,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: top-alltime-logs
           path: private-repo/new_parsers/logs/
@@ -358,7 +358,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: top-alltime-metrics
           path: private-repo/new_parsers/metrics/
@@ -430,7 +430,7 @@ jobs:
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: upcoming-progress
           path: private-repo/new_parsers/progress/
@@ -438,7 +438,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: upcoming-logs
           path: private-repo/new_parsers/logs/
@@ -446,7 +446,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: upcoming-metrics
           path: private-repo/new_parsers/metrics/
@@ -518,7 +518,7 @@ jobs:
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: airing-progress
           path: private-repo/new_parsers/progress/
@@ -526,7 +526,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: airing-logs
           path: private-repo/new_parsers/logs/
@@ -534,7 +534,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: airing-metrics
           path: private-repo/new_parsers/metrics/
@@ -606,7 +606,7 @@ jobs:
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: playlist-progress
           path: private-repo/new_parsers/progress/
@@ -614,7 +614,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: playlist-logs
           path: private-repo/new_parsers/logs/
@@ -622,7 +622,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: playlist-metrics
           path: private-repo/new_parsers/metrics/
@@ -694,7 +694,7 @@ jobs:
       
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mass-parser-progress
           path: private-repo/new_parsers/progress/
@@ -702,7 +702,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mass-parser-logs
           path: private-repo/new_parsers/logs/
@@ -710,7 +710,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mass-parser-metrics
           path: private-repo/new_parsers/metrics/
