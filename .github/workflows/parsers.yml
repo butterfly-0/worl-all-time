@@ -42,6 +42,9 @@ env:
   PRIVATE_REPO: 'butterfly-0/collection-anime'
   PRIVATE_REPO_BRANCH: 'main'
 
+permissions:
+  actions: read
+
 jobs:
   # Перевірка стану системи перед запуском парсерів
   health-check:
@@ -50,7 +53,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout public repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -64,7 +67,7 @@ jobs:
           pip install requests psutil pyyaml
       
       - name: Clone private repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           repository: ${{ env.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -107,7 +110,7 @@ jobs:
           if [ -f "health_check_report.json" ]; then cat health_check_report.json; else echo "Health check report not found"; fi
       
       - name: Upload health check report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: health-check-report
           path: health_check_report.json
@@ -123,7 +126,7 @@ jobs:
     
     steps:
       - name: Checkout public repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
       
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -132,7 +135,7 @@ jobs:
           cache: 'pip'
       
       - name: Clone private repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           repository: ${{ env.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -151,11 +154,22 @@ jobs:
           cd private-repo
           mkdir -p new_parsers/logs new_parsers/progress new_parsers/metrics
       
+      - name: Download previous progress
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: parser-pipeline.yml
+          name: anitube-hikka-progress
+          path: private-repo/new_parsers/progress
+          if_no_artifact_found: warn
+      
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
         run: |
           cd private-repo
-          rm -f new_parsers/progress/progress_anitube_hikka.json
+          if [ -f "new_parsers/progress/progress_anitube_hikka.json" ]; then
+            echo "Примусовий перезапуск: видалення файлів прогресу для anitube_hikka"
+            rm -f new_parsers/progress/progress_anitube_hikka.json
+          fi
       
       - name: Run AniTube + Hikka parser
         env:
@@ -173,7 +187,7 @@ jobs:
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: anitube-hikka-progress
           path: private-repo/new_parsers/progress/
@@ -181,7 +195,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: anitube-hikka-logs
           path: private-repo/new_parsers/logs/
@@ -189,7 +203,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: anitube-hikka-metrics
           path: private-repo/new_parsers/metrics/
@@ -205,7 +219,7 @@ jobs:
     
     steps:
       - name: Checkout public repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
       
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -214,7 +228,7 @@ jobs:
           cache: 'pip'
       
       - name: Clone private repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           repository: ${{ env.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -235,12 +249,22 @@ jobs:
           mkdir -p new_parsers/progress
           mkdir -p new_parsers/metrics
       
+      - name: Download previous progress
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: parser-pipeline.yml
+          name: top-season-progress
+          path: private-repo/new_parsers/progress
+          if_no_artifact_found: warn
+      
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
         run: |
           cd private-repo
-          echo "Примусовий перезапуск: видалення файлів прогресу для top_season"
-          rm -f new_parsers/progress/progress_top_season.json
+          if [ -f "new_parsers/progress/progress_top_season.json" ]; then
+            echo "Примусовий перезапуск: видалення файлів прогресу для top_season"
+            rm -f new_parsers/progress/progress_top_season.json
+          fi
       
       - name: Run Top Season parser
         env:
@@ -258,7 +282,7 @@ jobs:
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: top-season-progress
           path: private-repo/new_parsers/progress/
@@ -266,7 +290,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: top-season-logs
           path: private-repo/new_parsers/logs/
@@ -274,7 +298,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: top-season-metrics
           path: private-repo/new_parsers/metrics/
@@ -290,8 +314,8 @@ jobs:
     
     steps:
       - name: Checkout public repository
-        uses: actions/checkout@v4
-      
+        uses: actions/checkout@v3
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -299,7 +323,7 @@ jobs:
           cache: 'pip'
       
       - name: Clone private repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           repository: ${{ env.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -320,12 +344,22 @@ jobs:
           mkdir -p new_parsers/progress
           mkdir -p new_parsers/metrics
       
+      - name: Download previous progress
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: parser-pipeline.yml
+          name: top-alltime-progress
+          path: private-repo/new_parsers/progress
+          if_no_artifact_found: warn
+      
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
         run: |
           cd private-repo
-          echo "Примусовий перезапуск: видалення файлів прогресу для top_alltime"
-          rm -f new_parsers/progress/progress_top_alltime.json
+          if [ -f "new_parsers/progress/progress_top_alltime.json" ]; then
+            echo "Примусовий перезапуск: видалення файлів прогресу для top_alltime"
+            rm -f new_parsers/progress/progress_top_alltime.json
+          fi
       
       - name: Run Top All-time parser
         env:
@@ -343,7 +377,7 @@ jobs:
       
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: top-alltime-progress
           path: private-repo/new_parsers/progress/
@@ -351,7 +385,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: top-alltime-logs
           path: private-repo/new_parsers/logs/
@@ -359,7 +393,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: top-alltime-metrics
           path: private-repo/new_parsers/metrics/
@@ -375,7 +409,7 @@ jobs:
     
     steps:
       - name: Checkout public repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
       
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -384,7 +418,7 @@ jobs:
           cache: 'pip'
       
       - name: Clone private repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           repository: ${{ env.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -405,12 +439,22 @@ jobs:
           mkdir -p new_parsers/progress
           mkdir -p new_parsers/metrics
       
+      - name: Download previous progress
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: parser-pipeline.yml
+          name: upcoming-progress
+          path: private-repo/new_parsers/progress
+          if_no_artifact_found: warn
+      
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
         run: |
           cd private-repo
-          echo "Примусовий перезапуск: видалення файлів прогресу для top_upcoming"
-          rm -f new_parsers/progress/progress_top_upcoming.json
+          if [ -f "new_parsers/progress/progress_top_upcoming.json" ]; then
+            echo "Примусовий перезапуск: видалення файлів прогресу для top_upcoming"
+            rm -f new_parsers/progress/progress_top_upcoming.json
+          fi
       
       - name: Run Upcoming parser
         env:
@@ -428,7 +472,7 @@ jobs:
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: upcoming-progress
           path: private-repo/new_parsers/progress/
@@ -436,7 +480,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: upcoming-logs
           path: private-repo/new_parsers/logs/
@@ -444,7 +488,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: upcoming-metrics
           path: private-repo/new_parsers/metrics/
@@ -460,7 +504,7 @@ jobs:
     
     steps:
       - name: Checkout public repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
       
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -469,13 +513,13 @@ jobs:
           cache: 'pip'
       
       - name: Clone private repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           repository: ${{ env.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private-repo
           ref: ${{ env.PRIVATE_REPO_BRANCH }}
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -490,12 +534,22 @@ jobs:
           mkdir -p new_parsers/progress
           mkdir -p new_parsers/metrics
       
+      - name: Download previous progress
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: parser-pipeline.yml
+          name: airing-progress
+          path: private-repo/new_parsers/progress
+          if_no_artifact_found: warn
+      
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
         run: |
           cd private-repo
-          echo "Примусовий перезапуск: видалення файлів прогресу для airing"
-          rm -f new_parsers/progress/progress_airing.json
+          if [ -f "new_parsers/progress/progress_airing.json" ]; then
+            echo "Примусовий перезапуск: видалення файлів прогресу для airing"
+            rm -f new_parsers/progress/progress_airing.json
+          fi
       
       - name: Run Airing Schedule parser
         env:
@@ -513,7 +567,7 @@ jobs:
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: airing-progress
           path: private-repo/new_parsers/progress/
@@ -521,7 +575,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: airing-logs
           path: private-repo/new_parsers/logs/
@@ -529,7 +583,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: airing-metrics
           path: private-repo/new_parsers/metrics/
@@ -545,7 +599,7 @@ jobs:
     
     steps:
       - name: Checkout public repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
       
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -554,7 +608,7 @@ jobs:
           cache: 'pip'
       
       - name: Clone private repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           repository: ${{ env.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -575,12 +629,22 @@ jobs:
           mkdir -p new_parsers/progress
           mkdir -p new_parsers/metrics
       
+      - name: Download previous progress
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: parser-pipeline.yml
+          name: playlist-progress
+          path: private-repo/new_parsers/progress
+          if_no_artifact_found: warn
+      
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
         run: |
           cd private-repo
-          echo "Примусовий перезапуск: видалення файлів прогресу для playlist"
-          rm -f new_parsers/progress/progress_playlist_parser.json
+          if [ -f "new_parsers/progress/progress_playlist_parser.json" ]; then
+            echo "Примусовий перезапуск: видалення файлів прогресу для playlist"
+            rm -f new_parsers/progress/progress_playlist_parser.json
+          fi
       
       - name: Run Playlist parser
         env:
@@ -598,7 +662,7 @@ jobs:
 
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: playlist-progress
           path: private-repo/new_parsers/progress/
@@ -606,7 +670,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: playlist-logs
           path: private-repo/new_parsers/logs/
@@ -614,7 +678,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: playlist-metrics
           path: private-repo/new_parsers/metrics/
@@ -630,7 +694,7 @@ jobs:
     
     steps:
       - name: Checkout public repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
       
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -639,7 +703,7 @@ jobs:
           cache: 'pip'
       
       - name: Clone private repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           repository: ${{ env.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -660,12 +724,22 @@ jobs:
           mkdir -p new_parsers/progress
           mkdir -p new_parsers/metrics
       
+      - name: Download previous progress
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: parser-pipeline.yml
+          name: mass-parser-progress
+          path: private-repo/new_parsers/progress
+          if_no_artifact_found: warn
+      
       - name: Reset progress if force-restart
         if: github.event.inputs.force_restart == 'true'
         run: |
           cd private-repo
-          echo "Примусовий перезапуск: видалення файлів прогресу для mass_parser"
-          rm -f new_parsers/progress/progress_mass_parser.json
+          if [ -f "new_parsers/progress/progress_mass_parser.json" ]; then
+            echo "Примусовий перезапуск: видалення файлів прогресу для mass_parser"
+            rm -f new_parsers/progress/progress_mass_parser.json
+          fi
       
       - name: Run Mass Parser
         env:
@@ -683,7 +757,7 @@ jobs:
       
       - name: Upload progress data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: mass-parser-progress
           path: private-repo/new_parsers/progress/
@@ -691,7 +765,7 @@ jobs:
       
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: mass-parser-logs
           path: private-repo/new_parsers/logs/
@@ -699,7 +773,7 @@ jobs:
       
       - name: Upload metrics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: mass-parser-metrics
           path: private-repo/new_parsers/metrics/
@@ -715,7 +789,7 @@ jobs:
     
     steps:
       - name: Checkout public repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
       
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -724,7 +798,7 @@ jobs:
           cache: 'pip'
       
       - name: Clone private repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           repository: ${{ env.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
