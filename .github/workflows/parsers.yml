@@ -1,115 +1,756 @@
-name: Run Private Parsers
+name: Run Anime Parsers
 
 on:
+  schedule:
+    # Запуск щодня о 01:00 UTC (03:00 за київським часом)
+    - cron: '0 1 * * *'
   workflow_dispatch:
     inputs:
-      parser:
-        description: 'Який парсер запускати (залиште порожнім для запуску всіх по черзі)'
+      parser_type:
+        description: 'Тип парсера для запуску'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - anitube_hikka
+          - top_season
+          - top_alltime
+          - top_upcoming
+          - airing
+          - playlist
+          - mass_parser
+      force_restart:
+        description: 'Примусовий перезапуск (ігнорувати збережений прогрес)'
         required: false
-        default: ''
-  schedule:
-    - cron: '0 2 * * *'      # airing: щодня
-    - cron: '0 3 1 * *'      # top_upcoming: раз на місяць
-    - cron: '0 4 1 1,4,7,10 *' # mass_parser: раз на 3 місяці
-    - cron: '0 5 */3 * *'    # update_newly_ukrainian: раз на 3 дні
-    - cron: '0 6 1 1,4,7,10 *' # update_popularity_rank_alltime: раз на 3 місяці
-    - cron: '0 7 */4 * *'    # playlist_parser: раз на 4 дні
+        default: false
+        type: boolean
+      debug_mode:
+        description: 'Режим налагодження (більше логів)'
+        required: false
+        default: false
+        type: boolean
+
+# Глобальні змінні середовища
+env:
+  PYTHON_VERSION: '3.10'
+  PARSER_TIMEOUT: 21600  # 6 годин у секундах
+  HEALTH_CHECK_INTERVAL: 300  # 5 хвилин у секундах
+  PROGRESS_SAVE_INTERVAL: 60  # 1 хвилина у секундах
+  MAX_ATTEMPTS: 3  # Максимальна кількість спроб запуску парсера
+  CHUNK_SIZE: 50  # Розмір частини для розбиття великих завдань
+  PRIVATE_REPO: 'butterfly-0/collection-anime'
+  PRIVATE_REPO_BRANCH: 'main'
 
 jobs:
-  run-parsers:
+  # Перевірка стану системи перед запуском парсерів
+  health-check:
+    name: System Health Check
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 5
     steps:
-      - name: Checkout workflow repo
+      - name: Checkout public repository
         uses: actions/checkout@v3
 
-      - name: Clone private repo
-        env:
-          TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
-        run: |
-          git clone https://butterfly-0:${TOKEN}@github.com/butterfly-0/collection-anime.git
-          cd collection-anime
-          git submodule update --init --recursive
-          
-      - name: Create .env from secrets
-        run: |
-          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> collection-anime/.env
-          echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> collection-anime/.env
-          echo "PARSER_PROXY=${{ secrets.PARSER_PROXY }}" >> collection-anime/.env
-
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Clone private repository
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ env.PRIVATE_REPO }}
+          token: ${{ secrets.PRIVATE_REPO_PAT }}
+          path: private-repo
+          ref: ${{ env.PRIVATE_REPO_BRANCH }}
+      
+      - name: Install dependencies
+        run: |
+          cd private-repo
+          pip install requests psutil pyyaml
+      
+      - name: Run health check
+        run: |
+          cd private-repo
+          python .github/actions/health-check/lib/health_check.py
+        env:
+          PROXY_URL: ${{ secrets.PARSER_PROXY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          CHECK_EXTERNAL_APIS: 'true'
+          MEMORY_THRESHOLD: '80'
+          CPU_THRESHOLD: '90'
+          DISK_THRESHOLD: '90'
+      
+      - name: Display health check report
+        run: |
+          cd private-repo
+          if [ -f "health_check_report.json" ]; then
+            cat health_check_report.json
+          else
+            echo "Health check report not found"
+          fi
+      
+      - name: Upload health check report
+        uses: actions/upload-artifact@v3
+        with:
+          name: health-check-report
+          path: private-repo/health_check_report.json
+          retention-days: 7
+  
+  # Основний парсер AniTube + Hikka
+  anitube-hikka-parser:
+    name: AniTube + Hikka Parser
+    needs: health-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 годин
+    if: ${{ github.event.inputs.parser_type == 'all' || github.event.inputs.parser_type == 'anitube_hikka' || github.event_name == 'schedule' }}
+    
+    steps:
+      - name: Checkout public repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Clone private repository
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ env.PRIVATE_REPO }}
+          token: ${{ secrets.PRIVATE_REPO_PAT }}
+          path: private-repo
+          ref: ${{ env.PRIVATE_REPO_BRANCH }}
 
       - name: Install dependencies
         run: |
-          pip install -r collection-anime/Dr/Ani-Sites-Agregator/requirements.txt
-
-      # === ОКРЕМІ КРОКИ ДЛЯ КОЖНОГО ПАРСЕРА ===
-
-      - name: Run anitube_hikka
-        if: github.event.inputs.parser == '' || github.event.inputs.parser == 'anitube_hikka'
+          cd private-repo
+          pip install -r new_parsers/requirements.txt
+      
+      - name: Install anitube-ua-lib
         run: |
-          cd collection-anime
+          cd private-repo/anitube-ua-lib
+          pip install -e .
+      
+      - name: Create required directories
+        run: |
+          cd private-repo
+          mkdir -p new_parsers/logs
+          mkdir -p new_parsers/progress
+          mkdir -p new_parsers/metrics
+      
+      - name: Reset progress if force-restart
+        if: github.event.inputs.force_restart == 'true'
+        run: |
+          cd private-repo
+          echo "Примусовий перезапуск: видалення файлів прогресу для anitube_hikka"
+          rm -f new_parsers/progress/progress_anitube_hikka.json
+      
+      - name: Run AniTube + Hikka parser
+        env:
+          PARSER_PROXY: ${{ secrets.PARSER_PROXY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PARSER_TIMEOUT: ${{ env.PARSER_TIMEOUT }}
+          HEALTH_CHECK_INTERVAL: ${{ env.HEALTH_CHECK_INTERVAL }}
+          PROGRESS_SAVE_INTERVAL: ${{ env.PROGRESS_SAVE_INTERVAL }}
+          CHUNK_SIZE: ${{ env.CHUNK_SIZE }}
+          LOG_LEVEL: ${{ github.event.inputs.debug_mode == 'true' && 'DEBUG' || 'INFO' }}
+        run: |
+          cd private-repo
           python -m new_parsers.runImports anitube_hikka
 
-      - name: Run mass_parser
-        if: github.event.inputs.parser == '' || github.event.inputs.parser == 'mass_parser'
+      - name: Upload progress data
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: anitube-hikka-progress
+          path: private-repo/new_parsers/progress/
+          retention-days: 7
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: anitube-hikka-logs
+          path: private-repo/new_parsers/logs/
+          retention-days: 7
+      
+      - name: Upload metrics
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: anitube-hikka-metrics
+          path: private-repo/new_parsers/metrics/
+          retention-days: 7
+  
+  # Парсер топ аніме за сезоном
+  top-season-parser:
+    name: Top Season Parser
+    needs: health-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # 2 години
+    if: ${{ github.event.inputs.parser_type == 'all' || github.event.inputs.parser_type == 'top_season' || github.event_name == 'schedule' }}
+    
+    steps:
+      - name: Checkout public repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Clone private repository
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ env.PRIVATE_REPO }}
+          token: ${{ secrets.PRIVATE_REPO_PAT }}
+          path: private-repo
+          ref: ${{ env.PRIVATE_REPO_BRANCH }}
+      
+      - name: Install dependencies
         run: |
-          cd collection-anime
-          python -m new_parsers.anilist.mass_parser
-
-      - name: Run top_season
-        if: github.event.inputs.parser == '' || github.event.inputs.parser == 'top_season'
+          cd private-repo
+          pip install -r new_parsers/requirements.txt
+      
+      - name: Install anitube-ua-lib
         run: |
-          cd collection-anime
+          cd private-repo/anitube-ua-lib
+          pip install -e .
+      
+      - name: Create required directories
+        run: |
+          cd private-repo
+          mkdir -p new_parsers/logs
+          mkdir -p new_parsers/progress
+          mkdir -p new_parsers/metrics
+      
+      - name: Reset progress if force-restart
+        if: github.event.inputs.force_restart == 'true'
+        run: |
+          cd private-repo
+          echo "Примусовий перезапуск: видалення файлів прогресу для top_season"
+          rm -f new_parsers/progress/progress_top_season.json
+      
+      - name: Run Top Season parser
+        env:
+          PARSER_PROXY: ${{ secrets.PARSER_PROXY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PARSER_TIMEOUT: ${{ env.PARSER_TIMEOUT }}
+          HEALTH_CHECK_INTERVAL: ${{ env.HEALTH_CHECK_INTERVAL }}
+          PROGRESS_SAVE_INTERVAL: ${{ env.PROGRESS_SAVE_INTERVAL }}
+          CHUNK_SIZE: ${{ env.CHUNK_SIZE }}
+          LOG_LEVEL: ${{ github.event.inputs.debug_mode == 'true' && 'DEBUG' || 'INFO' }}
+        run: |
+          cd private-repo
           python -m new_parsers.runImports top_season
 
-      - name: Run top_upcoming
-        if: github.event.inputs.parser == '' || github.event.inputs.parser == 'top_upcoming'
+      - name: Upload progress data
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: top-season-progress
+          path: private-repo/new_parsers/progress/
+          retention-days: 7
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: top-season-logs
+          path: private-repo/new_parsers/logs/
+          retention-days: 7
+      
+      - name: Upload metrics
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: top-season-metrics
+          path: private-repo/new_parsers/metrics/
+          retention-days: 7
+  
+  # Парсер топ аніме за весь час
+  top-alltime-parser:
+    name: Top All-time Parser
+    needs: health-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # 2 години
+    if: ${{ github.event.inputs.parser_type == 'all' || github.event.inputs.parser_type == 'top_alltime' || github.event_name == 'schedule' }}
+    
+    steps:
+      - name: Checkout public repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Clone private repository
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ env.PRIVATE_REPO }}
+          token: ${{ secrets.PRIVATE_REPO_PAT }}
+          path: private-repo
+          ref: ${{ env.PRIVATE_REPO_BRANCH }}
+      
+      - name: Install dependencies
         run: |
-          cd collection-anime
+          cd private-repo
+          pip install -r new_parsers/requirements.txt
+      
+      - name: Install anitube-ua-lib
+        run: |
+          cd private-repo/anitube-ua-lib
+          pip install -e .
+      
+      - name: Create required directories
+        run: |
+          cd private-repo
+          mkdir -p new_parsers/logs
+          mkdir -p new_parsers/progress
+          mkdir -p new_parsers/metrics
+      
+      - name: Reset progress if force-restart
+        if: github.event.inputs.force_restart == 'true'
+        run: |
+          cd private-repo
+          echo "Примусовий перезапуск: видалення файлів прогресу для top_alltime"
+          rm -f new_parsers/progress/progress_top_alltime.json
+      
+      - name: Run Top All-time parser
+        env:
+          PARSER_PROXY: ${{ secrets.PARSER_PROXY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PARSER_TIMEOUT: ${{ env.PARSER_TIMEOUT }}
+          HEALTH_CHECK_INTERVAL: ${{ env.HEALTH_CHECK_INTERVAL }}
+          PROGRESS_SAVE_INTERVAL: ${{ env.PROGRESS_SAVE_INTERVAL }}
+          CHUNK_SIZE: ${{ env.CHUNK_SIZE }}
+          LOG_LEVEL: ${{ github.event.inputs.debug_mode == 'true' && 'DEBUG' || 'INFO' }}
+        run: |
+          cd private-repo
+          python -m new_parsers.runImports top_alltime
+      
+      - name: Upload progress data
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: top-alltime-progress
+          path: private-repo/new_parsers/progress/
+          retention-days: 7
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: top-alltime-logs
+          path: private-repo/new_parsers/logs/
+          retention-days: 7
+      
+      - name: Upload metrics
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: top-alltime-metrics
+          path: private-repo/new_parsers/metrics/
+          retention-days: 7
+  
+  # Парсер аніме, що очікуються
+  upcoming-parser:
+    name: Upcoming Anime Parser
+    needs: health-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # 2 години
+    if: ${{ github.event.inputs.parser_type == 'all' || github.event.inputs.parser_type == 'top_upcoming' || github.event_name == 'schedule' }}
+    
+    steps:
+      - name: Checkout public repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Clone private repository
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ env.PRIVATE_REPO }}
+          token: ${{ secrets.PRIVATE_REPO_PAT }}
+          path: private-repo
+          ref: ${{ env.PRIVATE_REPO_BRANCH }}
+      
+      - name: Install dependencies
+        run: |
+          cd private-repo
+          pip install -r new_parsers/requirements.txt
+      
+      - name: Install anitube-ua-lib
+        run: |
+          cd private-repo/anitube-ua-lib
+          pip install -e .
+      
+      - name: Create required directories
+        run: |
+          cd private-repo
+          mkdir -p new_parsers/logs
+          mkdir -p new_parsers/progress
+          mkdir -p new_parsers/metrics
+      
+      - name: Reset progress if force-restart
+        if: github.event.inputs.force_restart == 'true'
+        run: |
+          cd private-repo
+          echo "Примусовий перезапуск: видалення файлів прогресу для top_upcoming"
+          rm -f new_parsers/progress/progress_top_upcoming.json
+      
+      - name: Run Upcoming parser
+        env:
+          PARSER_PROXY: ${{ secrets.PARSER_PROXY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PARSER_TIMEOUT: ${{ env.PARSER_TIMEOUT }}
+          HEALTH_CHECK_INTERVAL: ${{ env.HEALTH_CHECK_INTERVAL }}
+          PROGRESS_SAVE_INTERVAL: ${{ env.PROGRESS_SAVE_INTERVAL }}
+          CHUNK_SIZE: ${{ env.CHUNK_SIZE }}
+          LOG_LEVEL: ${{ github.event.inputs.debug_mode == 'true' && 'DEBUG' || 'INFO' }}
+        run: |
+          cd private-repo
           python -m new_parsers.runImports top_upcoming
 
-      - name: Run update_newly_ukrainian
-        if: github.event.inputs.parser == '' || github.event.inputs.parser == 'update_newly_ukrainian'
+      - name: Upload progress data
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: upcoming-progress
+          path: private-repo/new_parsers/progress/
+          retention-days: 7
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: upcoming-logs
+          path: private-repo/new_parsers/logs/
+          retention-days: 7
+      
+      - name: Upload metrics
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: upcoming-metrics
+          path: private-repo/new_parsers/metrics/
+          retention-days: 7
+  
+  # Парсер розкладу виходу серій
+  airing-parser:
+    name: Airing Schedule Parser
+    needs: health-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # 2 години
+    if: ${{ github.event.inputs.parser_type == 'all' || github.event.inputs.parser_type == 'airing' || github.event_name == 'schedule' }}
+    
+    steps:
+      - name: Checkout public repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Clone private repository
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ env.PRIVATE_REPO }}
+          token: ${{ secrets.PRIVATE_REPO_PAT }}
+          path: private-repo
+          ref: ${{ env.PRIVATE_REPO_BRANCH }}
+      
+      - name: Install dependencies
         run: |
-          cd collection-anime
-          python -m new_parsers.anitube.update_newly_ukrainian
-
-      - name: Run airing
-        if: github.event.inputs.parser == '' || github.event.inputs.parser == 'airing'
+          cd private-repo
+          pip install -r new_parsers/requirements.txt
+      
+      - name: Install anitube-ua-lib
         run: |
-          cd collection-anime
+          cd private-repo/anitube-ua-lib
+          pip install -e .
+      
+      - name: Create required directories
+        run: |
+          cd private-repo
+          mkdir -p new_parsers/logs
+          mkdir -p new_parsers/progress
+          mkdir -p new_parsers/metrics
+      
+      - name: Reset progress if force-restart
+        if: github.event.inputs.force_restart == 'true'
+        run: |
+          cd private-repo
+          echo "Примусовий перезапуск: видалення файлів прогресу для airing"
+          rm -f new_parsers/progress/progress_airing.json
+      
+      - name: Run Airing Schedule parser
+        env:
+          PARSER_PROXY: ${{ secrets.PARSER_PROXY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PARSER_TIMEOUT: ${{ env.PARSER_TIMEOUT }}
+          HEALTH_CHECK_INTERVAL: ${{ env.HEALTH_CHECK_INTERVAL }}
+          PROGRESS_SAVE_INTERVAL: ${{ env.PROGRESS_SAVE_INTERVAL }}
+          CHUNK_SIZE: ${{ env.CHUNK_SIZE }}
+          LOG_LEVEL: ${{ github.event.inputs.debug_mode == 'true' && 'DEBUG' || 'INFO' }}
+        run: |
+          cd private-repo
           python -m new_parsers.runImports airing
 
-      - name: Run playlist_parser
-        if: github.event.inputs.parser == '' || github.event.inputs.parser == 'playlist_parser'
+      - name: Upload progress data
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: airing-progress
+          path: private-repo/new_parsers/progress/
+          retention-days: 7
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: airing-logs
+          path: private-repo/new_parsers/logs/
+          retention-days: 7
+      
+      - name: Upload metrics
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: airing-metrics
+          path: private-repo/new_parsers/metrics/
+          retention-days: 7
+  
+  # Парсер плейлістів
+  playlist-parser:
+    name: Playlist Parser
+    needs: health-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 180  # 3 години
+    if: ${{ github.event.inputs.parser_type == 'all' || github.event.inputs.parser_type == 'playlist' || github.event_name == 'schedule' }}
+    
+    steps:
+      - name: Checkout public repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Clone private repository
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ env.PRIVATE_REPO }}
+          token: ${{ secrets.PRIVATE_REPO_PAT }}
+          path: private-repo
+          ref: ${{ env.PRIVATE_REPO_BRANCH }}
+      
+      - name: Install dependencies
         run: |
-          cd collection-anime
+          cd private-repo
+          pip install -r new_parsers/requirements.txt
+      
+      - name: Install anitube-ua-lib
+        run: |
+          cd private-repo/anitube-ua-lib
+          pip install -e .
+      
+      - name: Create required directories
+        run: |
+          cd private-repo
+          mkdir -p new_parsers/logs
+          mkdir -p new_parsers/progress
+          mkdir -p new_parsers/metrics
+      
+      - name: Reset progress if force-restart
+        if: github.event.inputs.force_restart == 'true'
+        run: |
+          cd private-repo
+          echo "Примусовий перезапуск: видалення файлів прогресу для playlist"
+          rm -f new_parsers/progress/progress_playlist_parser.json
+      
+      - name: Run Playlist parser
+        env:
+          PARSER_PROXY: ${{ secrets.PARSER_PROXY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PARSER_TIMEOUT: ${{ env.PARSER_TIMEOUT }}
+          HEALTH_CHECK_INTERVAL: ${{ env.HEALTH_CHECK_INTERVAL }}
+          PROGRESS_SAVE_INTERVAL: ${{ env.PROGRESS_SAVE_INTERVAL }}
+          CHUNK_SIZE: ${{ env.CHUNK_SIZE }}
+          LOG_LEVEL: ${{ github.event.inputs.debug_mode == 'true' && 'DEBUG' || 'INFO' }}
+        run: |
+          cd private-repo
           python -m new_parsers.playlist_parser
 
-      - name: Check playlist_parser progress and rerun if needed
-        if: github.event.inputs.parser == '' || github.event.inputs.parser == 'playlist_parser'
+      - name: Upload progress data
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playlist-progress
+          path: private-repo/new_parsers/progress/
+          retention-days: 7
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playlist-logs
+          path: private-repo/new_parsers/logs/
+          retention-days: 7
+      
+      - name: Upload metrics
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playlist-metrics
+          path: private-repo/new_parsers/metrics/
+          retention-days: 7
+  
+  # Масовий парсер AniList
+  mass-parser:
+    name: Mass AniList Parser
+    needs: health-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 годин
+    if: ${{ github.event.inputs.parser_type == 'all' || github.event.inputs.parser_type == 'mass_parser' || github.event_name == 'schedule' }}
+    
+    steps:
+      - name: Checkout public repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Clone private repository
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ env.PRIVATE_REPO }}
+          token: ${{ secrets.PRIVATE_REPO_PAT }}
+          path: private-repo
+          ref: ${{ env.PRIVATE_REPO_BRANCH }}
+      
+      - name: Install dependencies
         run: |
-          cd collection-anime
-          python3 -c "import json; p=json.load(open('new_parsers/progress/progress_playlist_parser.json')); print(p.get('last_index', 0), '/', len(json.load(open('data/playlist_parser_result.json'))))" || echo 'No progress file yet.'
-          # Якщо не завершено, тригеримо rerun через GitHub API (псевдокод, замінити на робочий curl)
-          if [ -f new_parsers/progress/progress_playlist_parser.json ]; then \
-            total=$(jq length data/playlist_parser_result.json 2>/dev/null || echo 0); \
-            done=$(jq .last_index new_parsers/progress/progress_playlist_parser.json 2>/dev/null || echo 0); \
-            if [ "$done" -lt "$total" ]; then \
-              echo 'Rerun workflow for playlist_parser'; \
-              curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                -H "Accept: application/vnd.github.v3+json" \
-                https://api.github.com/repos/${{ github.repository }}/actions/workflows/${{ github.workflow }}/dispatches \
-                -d '{"ref":"${{ github.ref }}","inputs":{"parser":"playlist_parser"}}'; \
-            fi; \
-          fi
-
-      - name: Run update_popularity_rank_alltime
-        if: github.event.inputs.parser == '' || github.event.inputs.parser == 'update_popularity_rank_alltime'
+          cd private-repo
+          pip install -r new_parsers/requirements.txt
+      
+      - name: Install anitube-ua-lib
         run: |
-          cd collection-anime
-          python -m new_parsers.anitube.update_popularity_rank_alltime
+          cd private-repo/anitube-ua-lib
+          pip install -e .
+      
+      - name: Create required directories
+        run: |
+          cd private-repo
+          mkdir -p new_parsers/logs
+          mkdir -p new_parsers/progress
+          mkdir -p new_parsers/metrics
+      
+      - name: Reset progress if force-restart
+        if: github.event.inputs.force_restart == 'true'
+        run: |
+          cd private-repo
+          echo "Примусовий перезапуск: видалення файлів прогресу для mass_parser"
+          rm -f new_parsers/progress/progress_mass_parser.json
+      
+      - name: Run Mass Parser
+        env:
+          PARSER_PROXY: ${{ secrets.PARSER_PROXY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PARSER_TIMEOUT: ${{ env.PARSER_TIMEOUT }}
+          HEALTH_CHECK_INTERVAL: ${{ env.HEALTH_CHECK_INTERVAL }}
+          PROGRESS_SAVE_INTERVAL: ${{ env.PROGRESS_SAVE_INTERVAL }}
+          CHUNK_SIZE: ${{ env.CHUNK_SIZE }}
+          LOG_LEVEL: ${{ github.event.inputs.debug_mode == 'true' && 'DEBUG' || 'INFO' }}
+        run: |
+          cd private-repo
+          python -m new_parsers.anilist.mass_parser
+      
+      - name: Upload progress data
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: mass-parser-progress
+          path: private-repo/new_parsers/progress/
+          retention-days: 7
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: mass-parser-logs
+          path: private-repo/new_parsers/logs/
+          retention-days: 7
+      
+      - name: Upload metrics
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: mass-parser-metrics
+          path: private-repo/new_parsers/metrics/
+          retention-days: 7
+  
+  # Фінальний крок - об'єднання дублікатів
+  merge-duplicates:
+    name: Merge Duplicates
+    needs: [anitube-hikka-parser, top-season-parser, top-alltime-parser, upcoming-parser, airing-parser, playlist-parser, mass-parser]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ always() && !cancelled() }}
+    
+    steps:
+      - name: Checkout public repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Clone private repository
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ env.PRIVATE_REPO }}
+          token: ${{ secrets.PRIVATE_REPO_PAT }}
+          path: private-repo
+          ref: ${{ env.PRIVATE_REPO_BRANCH }}
+      
+      - name: Install dependencies
+        run: |
+          cd private-repo
+          pip install -r new_parsers/requirements.txt
+      
+      - name: Merge duplicates
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          cd private-repo
+          python -m new_parsers.utils.merge_duplicates
